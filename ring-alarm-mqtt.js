@@ -112,6 +112,11 @@ function supportedDevice(device) {
             device.component = 'alarm_control_panel'
             device.command = true
             break;
+	case 'switch':
+        case 'switch.multilevel':
+            device.component = 'switch'
+            device.command = true
+            break;
     }
     
     // Check if device is a lock	
@@ -249,6 +254,10 @@ function publishDeviceData(data, deviceTopic) {
             const smokeAlarmState = data.smoke && data.smoke.alarmStatus === 'active' ? 'ON' : 'OFF'
             publishMqttState(deviceTopic+'/gas/state', coAlarmState)
             publishMqttState(deviceTopic+'/smoke/state', smokeAlarmState)
+            break;
+        case 'switch':
+        case 'switch.multilevel':
+	    var deviceState = data.on ? 'ON' : 'OFF'
             break;
         case 'sensor.flood-freeze':
             const floodAlarmState = data.flood && data.flood.faulted ? 'ON' : 'OFF'
@@ -389,6 +398,22 @@ async function setLockTargetState(location, deviceId, message) {
     }
 }
 
+// Set lock target state on received MQTT command message
+async function setSwitchTargetState(location, deviceId, message) {
+    debug('Received set switch state '+message+' for switch Id: '+deviceId)
+    debug('Location Id: '+ location.locationId)
+    
+    const state = message.toLowerCase() === 'on'
+
+    const devices = await location.getDevices();
+    const device = devices.find(device => device.id === deviceId);
+    if(!device) {
+        debug('Cannot find specified device id in location devices');
+        return;
+    }
+    device.setInfo({ device: { v1: { on: state } } });
+}
+
 // Process received MQTT command
 async function processCommand(topic, message) {
     var message = message.toString()
@@ -421,6 +446,9 @@ async function processCommand(topic, message) {
                 break;
             case 'lock':
                 setLockTargetState(location, deviceId, message)
+                break;
+            case 'switch':
+                setSwitchTargetState(location, deviceId, message)
                 break;
             default:
                 debug('Somehow received command for an unknown device!')
